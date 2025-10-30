@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { DrivingInfo } from '../types';
 
 const getDrivingInfo = async (origin: string, destination: string): Promise<DrivingInfo> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: 'AIzaSyDhBiL4hCaR9W_IGY67OaYJSwI1sZOwmRE' });
 
   try {
     const response = await ai.models.generateContent({
