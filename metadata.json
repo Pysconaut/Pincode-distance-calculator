@@ -1,0 +1,5 @@
+{
+  "name": "Pin Code Distance Calculator",
+  "description": "A web application to calculate the distance between an Indian pin code and a city/town using the Haversine formula and Gemini for geolocation lookup.",
+  "requestFramePermissions": []
+}
