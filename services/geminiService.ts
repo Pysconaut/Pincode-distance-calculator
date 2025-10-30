@@ -1,9 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { DrivingInfo } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-
 const getDrivingInfo = async (origin: string, destination: string): Promise<DrivingInfo> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

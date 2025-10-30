@@ -19,6 +19,7 @@ const App: React.FC = () => {
 
     const handleCalculate = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
+        
         setIsLoading(true);
         setError(null);
         setResult(null);
@@ -66,7 +67,7 @@ const App: React.FC = () => {
 
     return (
         <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
-            <div className="w-full max-w-xs sm:max-w-sm md:max-w-lg bg-gray-800 text-white p-6 sm:p-8 rounded-xl shadow-2xl space-y-6">
+            <div className="relative w-full max-w-xs sm:max-w-sm md:max-w-lg bg-gray-800 text-white p-6 sm:p-8 rounded-xl shadow-2xl space-y-6">
                 <div className="text-center">
                     <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">Pin Code Distance Calculator</h1>
                     <p className="text-gray-400 mt-2">Calculate driving distances across India.</p>
@@ -132,7 +133,7 @@ const App: React.FC = () => {
                     )}
                     {result && !error && (
                         <div className="bg-gray-900/50 border border-gray-700 p-4 rounded-lg">
-                             {directionsUrl && (
+                            {directionsUrl && (
                                 <div className="mb-4">
                                     <a
                                         href={directionsUrl}
@@ -142,13 +143,13 @@ const App: React.FC = () => {
                                         aria-label={`Open map directions from ${originPinCode} to ${destinationCity} in a new tab`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         <span className="text-white">Map from {originPinCode} to {destinationCity}</span>
                                     </a>
                                 </div>
                             )}
-                             <div className="text-left text-gray-300">
+                            <div className="text-left text-gray-300">
                                 <p className="text-xl font-bold text-green-400">{result.travelTime}
                                 <span className="text-gray-400 font-normal"> ({result.distance.toLocaleString('en-IN')} km)</span></p>
                                 <p className="text-sm mt-1">{result.routeSummary}</p>
