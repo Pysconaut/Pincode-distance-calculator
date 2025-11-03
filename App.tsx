@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { getDrivingInfo } from './services/geminiService';
 import type { DrivingInfo } from './types';
 import FileUpload from './components/ui/file-upload';
@@ -13,9 +13,13 @@ const LoadingSpinner: React.FC = () => (
     </svg>
 );
 
+interface ViewProps {
+    setKeyReady: (isReady: boolean) => void;
+}
+
 // --- SINGLE CALCULATOR VIEW ---
 
-const SingleCalculatorView: React.FC = () => {
+const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
     const [originPinCode, setOriginPinCode] = useState('');
     const [destinationCity, setDestinationCity] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +57,13 @@ const SingleCalculatorView: React.FC = () => {
 
         } catch (err) {
             if (err instanceof Error) {
-                setError(err.message);
+                const message = err.message.toLowerCase();
+                 if (message.includes('api key') || message.includes('requested entity was not found')) {
+                    setKeyReady(false);
+                    setError("API Key error. Please select a valid API key and try again.");
+                } else {
+                    setError(err.message);
+                }
             } else {
                 setError('An unexpected error occurred. Please try again.');
             }
@@ -61,7 +71,7 @@ const SingleCalculatorView: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [originPinCode, destinationCity]);
+    }, [originPinCode, destinationCity, setKeyReady]);
     
     const handleClear = useCallback(() => {
         setOriginPinCode('');
@@ -186,7 +196,7 @@ const parseCsvLine = (line: string): string[] => {
 };
 
 
-const BulkCalculatorView: React.FC = () => {
+const BulkCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState({ processed: 0, total: 0 });
@@ -226,8 +236,8 @@ const BulkCalculatorView: React.FC = () => {
                 }
 
                 const header = parseCsvLine(lines[0]);
-                const originIndex = header.findIndex(h => h === 'Origin Pin Code');
-                const destIndex = header.findIndex(h => h === 'Destination City');
+                const originIndex = header.findIndex(h => h.toLowerCase() === 'origin pin code');
+                const destIndex = header.findIndex(h => h.toLowerCase() === 'destination city');
 
                 if (originIndex === -1 || destIndex === -1) {
                     throw new Error("Invalid CSV headers. Please use 'Origin Pin Code' and 'Destination City'.");
@@ -259,8 +269,16 @@ const BulkCalculatorView: React.FC = () => {
                             ...drivingInfo
                         });
                     } catch (err) {
-                        const message = err instanceof Error ? err.message : 'Unknown error';
-                        newErrors.push({ row: rowIndex, origin, destination, message });
+                        if (err instanceof Error) {
+                            const message = err.message.toLowerCase();
+                            if (message.includes('api key') || message.includes('requested entity was not found')) {
+                                setKeyReady(false);
+                                throw new Error("API Key error during bulk processing. Please select a valid API key and try again.");
+                            }
+                             newErrors.push({ row: rowIndex, origin, destination, message: err.message });
+                        } else {
+                            newErrors.push({ row: rowIndex, origin, destination, message: 'Unknown error' });
+                        }
                     }
                     setProgress(p => ({ ...p, processed: p.processed + 1 }));
                 }
@@ -395,6 +413,50 @@ type Mode = 'single' | 'bulk';
 
 const App: React.FC = () => {
     const [mode, setMode] = useState<Mode>('single');
+    const [isKeyReady, setIsKeyReady] = useState(false);
+
+    useEffect(() => {
+        // Poll for the aistudio object, as it might be loaded asynchronously.
+        const aistudioReadyCheck = (retries = 5) => {
+          if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+            window.aistudio.hasSelectedApiKey().then(setIsKeyReady);
+          } else if (retries > 0) {
+            setTimeout(() => aistudioReadyCheck(retries - 1), 200);
+          }
+        };
+        aistudioReadyCheck();
+    }, []);
+
+    const handleSelectKey = async () => {
+        if (window.aistudio) {
+            await window.aistudio.openSelectKey();
+            // Per guidelines, assume success to avoid race conditions.
+            setIsKeyReady(true);
+        }
+    };
+
+    if (!isKeyReady) {
+        return (
+            <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
+                <div className="w-full max-w-xs sm:max-w-sm md:max-w-lg bg-gray-800 text-white p-6 sm:p-8 rounded-xl shadow-2xl text-center">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">API Key Required</h1>
+                    <p className="text-gray-400 mt-2 mb-6">Please select a Google AI API key to continue.</p>
+                    <button 
+                        onClick={handleSelectKey}
+                        className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-md transition duration-300"
+                    >
+                        Select API Key
+                    </button>
+                    <p className="text-xs text-gray-500 mt-4">
+                        Ensure the Gemini API is enabled for your key. 
+                        <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline ml-1">
+                            Learn about billing
+                        </a>.
+                    </p>
+                </div>
+            </div>
+        );
+    }
     
     return (
         <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
@@ -420,7 +482,7 @@ const App: React.FC = () => {
                     </button>
                 </div>
 
-                {mode === 'single' ? <SingleCalculatorView /> : <BulkCalculatorView />}
+                {mode === 'single' ? <SingleCalculatorView setKeyReady={setIsKeyReady} /> : <BulkCalculatorView setKeyReady={setIsKeyReady} />}
             </div>
         </div>
     );

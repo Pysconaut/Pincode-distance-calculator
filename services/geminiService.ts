@@ -47,10 +47,8 @@ const getDrivingInfo = async (origin: string, destination: string): Promise<Driv
 
   } catch (error) {
     console.error(`Error fetching driving info for "${origin}" to "${destination}":`, error);
-    if (error instanceof Error) {
-        throw new Error(`API Error: ${error.message}. Please check the locations and try again.`);
-    }
-    throw new Error('An unknown error occurred while fetching driving information.');
+    // Rethrow original error for UI to handle specific cases like invalid API keys.
+    throw error;
   }
 };
 
