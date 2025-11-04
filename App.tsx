@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { getDrivingInfo } from './services/geminiService';
 import type { DrivingInfo } from './types';
@@ -13,23 +14,38 @@ const LoadingSpinner: React.FC = () => (
     </svg>
 );
 
-interface ViewProps {
-    setKeyReady: (isReady: boolean) => void;
-}
-
 // --- SINGLE CALCULATOR VIEW ---
 
-const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
+const SingleCalculatorView: React.FC = () => {
     const [originPinCode, setOriginPinCode] = useState('');
     const [destinationCity, setDestinationCity] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [destinationCityError, setDestinationCityError] = useState<string | null>(null);
     const [result, setResult] = useState<DrivingInfo | null>(null);
     const [directionsUrl, setDirectionsUrl] = useState<string | null>(null);
+
+    const validateDestinationCity = (value: string): string | null => {
+        const trimmedValue = value.trim();
+        if (value.length > 100) {
+            return 'City name cannot exceed 100 characters.';
+        }
+        if (trimmedValue.length > 0 && !/[a-zA-Z0-9]/.test(trimmedValue)) {
+            return 'City name must contain letters or numbers.';
+        }
+        return null;
+    };
 
     const handleCalculate = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         
+        // Run final validation on submit
+        const finalDestError = validateDestinationCity(destinationCity);
+        if (finalDestError) {
+            setDestinationCityError(finalDestError);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         setResult(null);
@@ -58,9 +74,8 @@ const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
         } catch (err) {
             if (err instanceof Error) {
                 const message = err.message.toLowerCase();
-                 if (message.includes('api key') || message.includes('requested entity was not found')) {
-                    setKeyReady(false);
-                    setError("API Key error. Please select a valid API key and try again.");
+                 if (message.includes('api key')) {
+                    setError("There is an issue with the API configuration. Please try again later.");
                 } else {
                     setError(err.message);
                 }
@@ -71,7 +86,7 @@ const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [originPinCode, destinationCity, setKeyReady]);
+    }, [originPinCode, destinationCity]);
     
     const handleClear = useCallback(() => {
         setOriginPinCode('');
@@ -79,7 +94,14 @@ const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
         setError(null);
         setResult(null);
         setDirectionsUrl(null);
+        setDestinationCityError(null);
     }, []);
+
+    const handleDestinationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        setDestinationCity(newValue);
+        setDestinationCityError(validateDestinationCity(newValue));
+    };
 
     return (
         <>
@@ -108,17 +130,24 @@ const SingleCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
                         id="city"
                         type="text"
                         value={destinationCity}
-                        onChange={(e) => setDestinationCity(e.target.value)}
+                        onChange={handleDestinationChange}
                         placeholder="Enter city or town name"
-                        className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition"
+                        className={`w-full px-4 py-2 bg-gray-700 border rounded-md focus:ring-2 outline-none transition ${destinationCityError ? 'border-red-500 focus:ring-red-500' : 'border-gray-600 focus:ring-cyan-500 focus:border-cyan-500'}`}
                         disabled={isLoading}
+                        aria-invalid={!!destinationCityError}
+                        aria-describedby="city-error"
                     />
+                    {destinationCityError && (
+                        <p id="city-error" className="text-red-400 text-sm mt-1">
+                            {destinationCityError}
+                        </p>
+                    )}
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0 pt-2">
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isLoading || !!destinationCityError}
                         className="flex-grow w-full flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? <LoadingSpinner /> : null}
@@ -196,7 +225,7 @@ const parseCsvLine = (line: string): string[] => {
 };
 
 
-const BulkCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
+const BulkCalculatorView: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState({ processed: 0, total: 0 });
@@ -271,9 +300,8 @@ const BulkCalculatorView: React.FC<ViewProps> = ({ setKeyReady }) => {
                     } catch (err) {
                         if (err instanceof Error) {
                             const message = err.message.toLowerCase();
-                            if (message.includes('api key') || message.includes('requested entity was not found')) {
-                                setKeyReady(false);
-                                throw new Error("API Key error during bulk processing. Please select a valid API key and try again.");
+                            if (message.includes('api key')) {
+                                throw new Error("Processing stopped due to an API configuration issue.");
                             }
                              newErrors.push({ row: rowIndex, origin, destination, message: err.message });
                         } else {
@@ -413,50 +441,6 @@ type Mode = 'single' | 'bulk';
 
 const App: React.FC = () => {
     const [mode, setMode] = useState<Mode>('single');
-    const [isKeyReady, setIsKeyReady] = useState(false);
-
-    useEffect(() => {
-        // Poll for the aistudio object, as it might be loaded asynchronously.
-        const aistudioReadyCheck = (retries = 5) => {
-          if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-            window.aistudio.hasSelectedApiKey().then(setIsKeyReady);
-          } else if (retries > 0) {
-            setTimeout(() => aistudioReadyCheck(retries - 1), 200);
-          }
-        };
-        aistudioReadyCheck();
-    }, []);
-
-    const handleSelectKey = async () => {
-        if (window.aistudio) {
-            await window.aistudio.openSelectKey();
-            // Per guidelines, assume success to avoid race conditions.
-            setIsKeyReady(true);
-        }
-    };
-
-    if (!isKeyReady) {
-        return (
-            <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
-                <div className="w-full max-w-xs sm:max-w-sm md:max-w-lg bg-gray-800 text-white p-6 sm:p-8 rounded-xl shadow-2xl text-center">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">API Key Required</h1>
-                    <p className="text-gray-400 mt-2 mb-6">Please select a Google AI API key to continue.</p>
-                    <button 
-                        onClick={handleSelectKey}
-                        className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-md transition duration-300"
-                    >
-                        Select API Key
-                    </button>
-                    <p className="text-xs text-gray-500 mt-4">
-                        Ensure the Gemini API is enabled for your key. 
-                        <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline ml-1">
-                            Learn about billing
-                        </a>.
-                    </p>
-                </div>
-            </div>
-        );
-    }
     
     return (
         <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
@@ -482,7 +466,7 @@ const App: React.FC = () => {
                     </button>
                 </div>
 
-                {mode === 'single' ? <SingleCalculatorView setKeyReady={setIsKeyReady} /> : <BulkCalculatorView setKeyReady={setIsKeyReady} />}
+                {mode === 'single' ? <SingleCalculatorView /> : <BulkCalculatorView />}
             </div>
         </div>
     );
